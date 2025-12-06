@@ -1,8 +1,10 @@
 ﻿using System.Text;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Ocr_back.AuthHandlers;
 using Ocr_back.Config;
 using Ocr_back.Data;
 using Ocr_back.Models;
@@ -21,29 +23,41 @@ public static class RegisterAuth
 
         services.AddIdentity<User, IdentityRole<Guid>>()
             .AddEntityFrameworkStores<AuthDbContext>();
-
-        services.Configure<JwtOptions>(config.GetSection("Jwt"));
-
-        var jwtOptions = config.GetSection("Jwt").Get<JwtOptions>();
-
-        services.AddAuthentication(options =>
+        
+        services
+            .AddAuthentication(options =>
             {
-                options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-                options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+                // Set your custom scheme as the default if you wish
+                options.DefaultAuthenticateScheme = "Token";
+                options.DefaultChallengeScheme = "Token";
             })
-            .AddJwtBearer(options =>
-            {
-                options.TokenValidationParameters = new TokenValidationParameters
-                {
-                    ValidateIssuer = true,
-                    ValidateAudience = true,
-                    ValidateLifetime = true,
-                    ValidateIssuerSigningKey = true,
-                    ValidIssuer = jwtOptions!.Issuer,
-                    ValidAudience = jwtOptions.Audience,
-                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.SecretKey))
-                };
-            });
+            .AddScheme<AuthenticationSchemeOptions, TokenAuthHandler>( 
+                "Token", 
+                options => { 
+                });
+
+        // services.Configure<JwtOptions>(config.GetSection("Jwt"));
+        //
+        // var jwtOptions = config.GetSection("Jwt").Get<JwtOptions>();
+        //
+        // services.AddAuthentication(options =>
+        //     {
+        //         options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+        //         options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+        //     })
+        //     .AddJwtBearer(options =>
+        //     {
+        //         options.TokenValidationParameters = new TokenValidationParameters
+        //         {
+        //             ValidateIssuer = true,
+        //             ValidateAudience = true,
+        //             ValidateLifetime = true,
+        //             ValidateIssuerSigningKey = true,
+        //             ValidIssuer = jwtOptions!.Issuer,
+        //             ValidAudience = jwtOptions.Audience,
+        //             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.SecretKey))
+        //         };
+        //     });
 
         services.AddScoped<TokenService>();
     }

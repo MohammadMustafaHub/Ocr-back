@@ -16,8 +16,8 @@ builder.Services.AddRateLimiter(op =>
 
     op.AddFixedWindowLimiter("OCR", fop =>
     {
-        fop.PermitLimit = 100;
-        fop.Window = TimeSpan.FromMinutes(10);
+        fop.PermitLimit = 1;
+        fop.Window = TimeSpan.FromMinutes(1);
         fop.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
         fop.QueueLimit = 0;
     });
@@ -48,8 +48,12 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseCors("AllowFrontEnd");
+app.UseAuthentication();
+app.UseAuthorization();
 app.UseRateLimiter();
 
 app.MapControllers();
+
+app.MapGet("/", () => "Hello World!");
 
 app.Run();

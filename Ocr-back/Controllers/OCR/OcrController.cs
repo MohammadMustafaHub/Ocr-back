@@ -5,6 +5,7 @@ using MassTransit;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.EntityFrameworkCore;
 using Ocr_back.Data;
 using Ocr_back.Models;
 using Ocr_back.Services;
@@ -31,14 +32,26 @@ public class OcrController : Controller
     [EnableRateLimiting("OCR")]
     public async Task<IActionResult> Post(OCRImageRequest request)
     {
-
+        
         var userId = Guid.Parse(User.Claims.FirstOrDefault(x => x.Type == ClaimTypes.NameIdentifier)!.Value);
         var hash = GetFileHash(request.Image.OpenReadStream());
         
         // find by hash
         var res = _db.ImageProcesses.FirstOrDefault(x => x.Hash == hash && x.UserId == userId);
-        if(res is not null)
-            return Ok(new { Text = res.ExtractedText });
+        if (res is not null)
+        {
+            if (res.ExtractedText is not null)
+            {
+                return Ok(new ExtractedTextResponse()
+                {
+                    ImageUrl = await _imageUploadService.GeneratePresignedUrl(res.ImagePath),
+                    Text =  res.ExtractedText!,
+                    ProcessId = res.Id
+                });
+            }
+            
+            return Accepted(new { ProcessId = res.Id });
+        }
         
         string url = await _imageUploadService.UploadFileAsync(request.Image);
         var image = new ImageProcess()
@@ -81,6 +94,41 @@ public class OcrController : Controller
 
         return Accepted();
     }
+
+    [Authorize]
+    [HttpGet("history")]
+    public async Task<IActionResult> GetHistory(int pageSize = 100, int pageNumber = 1)
+    {
+        var userId = Guid.Parse(User.Claims.FirstOrDefault(x => x.Type == ClaimTypes.NameIdentifier)!.Value);
+        var res = await
+            _db.ImageProcesses
+                .Where(x => x.UserId == userId)
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize + 1)
+                .ToListAsync();
+
+        var response =  res
+            .Select(x => new ExtractedTextResponse()
+            {
+                ImageUrl = x.ImagePath,
+                Text = x.ExtractedText ?? string.Empty,
+                ProcessId = x.Id
+            }).ToArray();
+
+        foreach (var image in response)
+        {
+            if (!String.IsNullOrWhiteSpace(image.ImageUrl))
+            {
+                image.ImageUrl = await _imageUploadService.GeneratePresignedUrl(image.ImageUrl);
+            }
+        }
+
+        return Ok(new PaginationResponse<ExtractedTextResponse>()
+        {
+            HasNext = res.Count > pageSize,
+            Items = response
+        });
+    }
     
     
     private static string GetFileHash(Stream stream)
@@ -117,7 +165,11 @@ public class ExtractedTextResponse
     public string ImageUrl { get; set; }
 }
 
-
+public class PaginationResponse<T>
+{
+    public IEnumerable<T> Items { get; set; } = Enumerable.Empty<T>();
+    public bool HasNext { get; set; }
+}
 
 
 

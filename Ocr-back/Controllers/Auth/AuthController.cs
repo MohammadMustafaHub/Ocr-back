@@ -46,11 +46,10 @@ public class AuthController : Controller
         await _userManager.AddClaimAsync(user, new Claim(ClaimTypes.Role, "User"));
 
         var refresh = await _generateRefreshToken(user);
-        var token = await _tokenService.GenerateJwtToken(user);
+
         return Ok(new TokenResponse()
         {
-            AccessToken = token,
-            RefreshToken = refresh.Token
+            AccessToken = refresh.Token,
         });
     }
 
@@ -74,21 +73,19 @@ public class AuthController : Controller
         
         await _userManager.ResetAccessFailedCountAsync(user);
         
-        var refresh = await _generateRefreshToken(user);
-        var token = await _tokenService.GenerateJwtToken(user);
+        var token = await _generateRefreshToken(user);
         
         return Ok(new TokenResponse()
         {
-            AccessToken = token,
-            RefreshToken = refresh.Token,
+            AccessToken = token.Token,
         });
     }
     
     
-    private async Task<RefreshToken> _generateRefreshToken(User user)
+    private async Task<AccessToken> _generateRefreshToken(User user)
     {
-        var token = RefreshToken.Create(user);
-        _db.RefreshTokens.Add(token);
+        var token = AccessToken.Create(user, TokenType.Auth, DateTime.UtcNow.AddDays(30).ToUniversalTime());
+        _db.AccessTokens.Add(token);
         await _db.SaveChangesAsync();
         return token;
     }

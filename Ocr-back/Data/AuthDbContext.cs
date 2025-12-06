@@ -15,9 +15,10 @@ public class AuthDbContext : IdentityDbContext<User, IdentityRole<Guid>, Guid>
     {
         base.OnModelCreating(modelBuilder);
         
-        modelBuilder.Entity<RefreshToken>().HasKey(x => x.Id);
-        modelBuilder.Entity<RefreshToken>().HasIndex(x => x.Token);
+        modelBuilder.Entity<AccessToken>().HasKey(x => x.Id);
+        modelBuilder.Entity<AccessToken>().HasIndex(x => x.Token);
+        modelBuilder.Entity<AccessToken>().Property(x => x.TokenType).HasConversion<string>();
     }
 
-    public DbSet<RefreshToken> RefreshTokens { get; set; }
+    public DbSet<AccessToken> AccessTokens { get; set; }
 }
