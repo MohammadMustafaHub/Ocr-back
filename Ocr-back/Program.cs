@@ -1,8 +1,42 @@
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
+using Ocr_back.Extensions;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+
+builder.Services.AddControllers();
+
+builder.Services.AddRateLimiter(op =>
+{
+    op.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    op.AddFixedWindowLimiter("OCR", fop =>
+    {
+        fop.PermitLimit = 100;
+        fop.Window = TimeSpan.FromMinutes(10);
+        fop.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        fop.QueueLimit = 0;
+    });
+});
+
+builder.Services.AddCors(op =>
+{
+    op.AddPolicy("AllowFrontEnd", bld =>
+    {
+        bld.WithOrigins("http://localhost:5173")
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials();
+    });
+});
+
+builder.Services.AddAuthServices(builder.Configuration);
+builder.Services.AddAppServices(builder.Configuration);
+builder.Services.AddMassTransitServices();
 
 var app = builder.Build();
 
@@ -13,29 +47,9 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseCors("AllowFrontEnd");
+app.UseRateLimiter();
 
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
-
-app.MapGet("/weatherforecast", () =>
-    {
-        var forecast = Enumerable.Range(1, 5).Select(index =>
-                new WeatherForecast
-                (
-                    DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-                    Random.Shared.Next(-20, 55),
-                    summaries[Random.Shared.Next(summaries.Length)]
-                ))
-            .ToArray();
-        return forecast;
-    })
-    .WithName("GetWeatherForecast");
+app.MapControllers();
 
 app.Run();
-
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
